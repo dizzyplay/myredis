@@ -1,5 +1,8 @@
 #![allow(unused_imports)]
 
+mod encode;
+
+use crate::encode::Encoder;
 use std::io::{Read, Write};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -19,10 +22,29 @@ async fn main() {
                     loop {
                         match socket.read(&mut buffer).await {
                             Ok(0) => return,
-                            Ok(_) => {
-                                if let Err(e) = socket.write_all(b"+PONG\r\n").await {
-                                    eprintln!("{:?}", e);
-                                    return;
+                            Ok(bytes) => {
+                                let s = &buffer[0..bytes];
+                                let mut encoder = Encoder::new(s);
+                                let mut result = encoder.parse();
+                                while let Some(s) = result.pop_front() {
+                                    match s.as_str() {
+                                        ("ECHO") => {
+                                            let s = result.pop_front().unwrap();
+                                            if let Err(e) = socket
+                                                .write_all(format!("${}\r\n{}\r\n",s.len(), s).as_bytes())
+                                                .await
+                                            {
+                                                eprintln!("{:?}", e);
+                                                return;
+                                            }
+                                        }
+                                        _ => {
+                                            if let Err(e) = socket.write_all(b"+PONG\r\n").await {
+                                                eprintln!("{:?}", e);
+                                                return;
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             Err(e) => {
