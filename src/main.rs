@@ -17,7 +17,7 @@ async fn main() {
     //
     let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
 
-    let store:Arc<Store> = Arc::new(Store::new());
+    let store: Arc<Store> = Arc::new(Store::new());
     loop {
         match listener.accept().await {
             Ok((mut socket, _)) => {
@@ -63,7 +63,6 @@ async fn main() {
                                                 eprintln!("{:?}", e);
                                                 return;
                                             }
-
                                         }
                                         "GET" => {
                                             let key = result.pop_front().unwrap();
@@ -76,10 +75,15 @@ async fn main() {
                                                             value.len(),
                                                             value
                                                         )
-                                                        .as_bytes(),
+                                                            .as_bytes(),
                                                     )
                                                     .await
                                                 {
+                                                    eprintln!("{:?}", e);
+                                                    return;
+                                                }
+                                            } else {
+                                                if let Err(e) = socket.write_all(b"$-1\r\n").await {
                                                     eprintln!("{:?}", e);
                                                     return;
                                                 }
