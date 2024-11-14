@@ -3,7 +3,7 @@
 mod encode;
 mod store;
 
-use crate::store::{new_safe_store, SafeStore};
+use crate::store::{Store};
 use crate::encode::Encoder;
 use std::io::{Read, Write};
 use std::sync::Arc;
@@ -16,13 +16,13 @@ async fn main() {
     // Uncomment this block to pass the first stage
     //
     let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
-    let store: Arc<SafeStore> = Arc::new(new_safe_store());
+
+    let store:Arc<Store> = Arc::new(Store::new());
     loop {
-        let async_store_clone = Arc::clone(&store);
         match listener.accept().await {
             Ok((mut socket, _)) => {
+                let store_clone = Arc::clone(&store);
                 tokio::spawn(async move {
-                    let mut store_guard = async_store_clone.lock().unwrap();
                     let mut buffer = [0; 512];
                     loop {
                         match socket.read(&mut buffer).await {
@@ -48,7 +48,7 @@ async fn main() {
                                         "SET" => {
                                             let key = result.pop_front().unwrap();
                                             let value = result.pop_front().unwrap();
-                                            store_guard.insert(key, value);
+                                            store_clone.insert(key, value).await;
                                             if let Err(e) = socket
                                                 .write_all(
                                                     format!(
@@ -67,9 +67,8 @@ async fn main() {
                                         }
                                         "GET" => {
                                             let key = result.pop_front().unwrap();
-                                            let store_guard = store.lock().unwrap();
-                                            let value = store_guard.get(&key);
-                                            if let Some(value) = value {
+                                            let value = store_clone.get(&key);
+                                            if let Some(value) = value.await {
                                                 if let Err(e) = socket
                                                     .write_all(
                                                         format!(
