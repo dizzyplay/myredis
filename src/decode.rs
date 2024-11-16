@@ -1,22 +1,17 @@
-use std::collections::VecDeque;
 use bytes::BytesMut;
+use std::collections::VecDeque;
 
-#[derive(Debug)]
-pub enum Value {
-    Array(Vec<Value>),
-    String(String),
-}
 pub struct Decoder {
     data: VecDeque<String>,
 }
 impl Decoder {
-    pub fn new(data: BytesMut) -> Decoder {
-        let command = String::from_utf8(data.clone().to_vec()).unwrap();
+    pub fn new(data: BytesMut) -> Result<Decoder, std::string::FromUtf8Error> {
+        let command = String::from_utf8(data.clone().to_vec())?;
         let command_list: VecDeque<String> = command.split("\r\n").map(|s| s.to_string()).collect();
-        Decoder { data: command_list }
+        Ok(Decoder { data: command_list })
     }
 
-    pub fn parse(&mut self) -> VecDeque<String> {
+    pub fn parse(&mut self) -> Result<VecDeque<String>, String> {
         let mut arr = VecDeque::new();
 
         while let Some(command) = self.data.pop_front() {
@@ -25,9 +20,11 @@ impl Decoder {
                     // '$' 뒤 숫자를 파싱하여 문자열 길이로 사용
                     let string_length = cmd
                         .strip_prefix('$')
-                        .ok_or("Expected '$' prefix").unwrap()
+                        .ok_or("Expected '$' prefix")
+                        .unwrap()
                         .parse::<usize>()
-                        .map_err(|_| "Invalid string length after '$'").unwrap();
+                        .map_err(|_| "Invalid string length after '$'")
+                        .unwrap();
 
                     // 문자열 길이에 해당하는 데이터를 읽어오기
                     if let Some(data) = self.data.pop_front() {
@@ -46,6 +43,6 @@ impl Decoder {
                 }
             }
         }
-        arr
+        Ok(arr)
     }
 }
