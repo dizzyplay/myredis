@@ -1,18 +1,19 @@
 use std::collections::VecDeque;
+use bytes::BytesMut;
 
 #[derive(Debug)]
 pub enum Value {
     Array(Vec<Value>),
     String(String),
 }
-pub struct Encoder {
+pub struct Decoder {
     data: VecDeque<String>,
 }
-impl Encoder {
-    pub fn new(data: &[u8]) -> Encoder {
+impl Decoder {
+    pub fn new(data: BytesMut) -> Decoder {
         let command = String::from_utf8(data.clone().to_vec()).unwrap();
         let command_list: VecDeque<String> = command.split("\r\n").map(|s| s.to_string()).collect();
-        Encoder { data: command_list }
+        Decoder { data: command_list }
     }
 
     pub fn parse(&mut self) -> VecDeque<String> {

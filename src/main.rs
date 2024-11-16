@@ -1,14 +1,15 @@
 #![allow(unused_imports)]
 
-mod encode;
+mod decode;
 mod store;
 
 use crate::store::{Store};
-use crate::encode::Encoder;
+use crate::decode::Decoder;
 use std::io::{Read, Write};
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+use bytes::BytesMut;
 
 #[tokio::main]
 async fn main() {
@@ -20,13 +21,13 @@ async fn main() {
             Ok((mut socket, _)) => {
                 let store_clone = Arc::clone(&store);
                 tokio::spawn(async move {
-                    let mut buffer = [0; 512];
+                    let mut buf = BytesMut::with_capacity(512);
                     loop {
-                        match socket.read(&mut buffer).await {
+                        match socket.read(&mut buf).await {
                             Ok(0) => return,
                             Ok(bytes) => {
-                                let s = &buffer[0..bytes];
-                                let mut encoder = Encoder::new(s);
+                                let s = buf.split_to(bytes);
+                                let mut encoder = Decoder::new(s);
                                 let mut result = encoder.parse();
                                 while let Some(s) = result.pop_front() {
                                     match s.as_str() {
