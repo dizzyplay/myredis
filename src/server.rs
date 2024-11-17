@@ -48,16 +48,30 @@ async fn handle_connection(mut socket: TcpStream, store: Arc<Store>) -> Result<(
             bytes => {
                 println!("accepted {} bytes", bytes);
                 let s = buf.split_to(bytes);
-                if let Ok(mut result) = Decoder::new(s) {
-                    if let Ok(mut command_list) = result.parse() {
-                        if let Ok(response) = process_command(&mut command_list, &store).await {
-                            socket.write_all(response.as_ref()).await?;
-                        } else if let Err(e) = process_command(&mut command_list, &store).await {
-                            eprintln!("Error processing command: {}", e);
-                            socket.write_all(b"-ERR\r\n").await?;
+
+                let response = match Decoder::new(s) {
+                    Ok(mut decoder) => match decoder.parse() {
+                        Ok(mut command_list) => {
+                            match process_command(&mut command_list, &store).await {
+                                Ok(response) => response,
+                                Err(e) => {
+                                    eprintln!("Error processing command: {}", e);
+                                    "-ERR\r\n".into()
+                                }
+                            }
                         }
+                        Err(e) => {
+                            eprintln!("Error parsing command: {}", e);
+                            "-ERR Invalid command format\r\n".into()
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("Error decoding input: {}", e);
+                        "-ERR Invalid input\r\n".into()
                     }
-                }
+                };
+
+                socket.write_all(response.as_ref()).await?;
             }
         }
     }
