@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use bytes::BytesMut;
-    use crate::encoder::RedisEncoder;
+    use crate::protocol::encoder::RedisEncoder;
 
     #[test]
     fn test_encode_pong() {

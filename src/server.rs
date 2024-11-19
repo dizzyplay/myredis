@@ -1,5 +1,5 @@
-use crate::decoder::{RedisDecoder, RedisCommand};
-use crate::encoder::RedisEncoder;
+use crate::protocol::decoder::{RedisDecoder, RedisCommand};
+use crate::protocol::encoder::RedisEncoder;
 use crate::store::Store;
 use anyhow::Result;
 use bytes::BytesMut;

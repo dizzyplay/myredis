@@ -1,5 +1,7 @@
-pub mod decoder;
-pub mod encoder;
+pub mod protocol {
+    pub mod decoder;
+    pub mod encoder;
+}
 pub mod server;
 pub mod store;
 

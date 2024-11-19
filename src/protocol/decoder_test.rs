@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use bytes::BytesMut;
-    use crate::decoder::{RedisDecoder, RedisCommand};
+    use crate::protocol::decoder::{RedisDecoder, RedisCommand};
 
     fn create_buffer(data: &[u8]) -> BytesMut {
         let mut buffer = BytesMut::new();
