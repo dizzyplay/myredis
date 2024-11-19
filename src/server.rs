@@ -1,5 +1,5 @@
-use crate::command::process_command;
-use crate::decode::Decoder;
+use crate::decoder::{RedisDecoder, RedisCommand};
+use crate::encoder::RedisEncoder;
 use crate::store::Store;
 use anyhow::Result;
 use bytes::BytesMut;
@@ -13,7 +13,7 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn new(addr: &str) -> Result<Self> {
+    pub async fn new(addr: &str) -> Result<Server> {
         let listener = TcpListener::bind(addr).await?;
         let store = Arc::new(Store::new());
 
@@ -21,16 +21,13 @@ impl Server {
     }
 
     pub async fn run(&self) -> Result<()> {
-        println!("Server running on {}", self.listener.local_addr()?);
-
         loop {
-            let (socket, addr) = self.listener.accept().await?;
-            println!("Accepted connection from: {}", addr);
-
+            let (socket, _) = self.listener.accept().await?;
             let store = Arc::clone(&self.store);
+
             tokio::spawn(async move {
-                if let Err(e) = handle_connection(socket, store).await {
-                    eprintln!("Error handling connection: {}", e);
+                if let Err(err) = handle_connection(socket, store).await {
+                    eprintln!("Error: {:?}", err);
                 }
             });
         }
@@ -38,41 +35,47 @@ impl Server {
 }
 
 async fn handle_connection(mut socket: TcpStream, store: Arc<Store>) -> Result<()> {
+    let mut buf = BytesMut::with_capacity(1024);
+    let decoder = RedisDecoder::new();
+    let encoder = RedisEncoder::new();
+    let mut response = BytesMut::new();
+
     loop {
-        let mut buf = BytesMut::with_capacity(512);
         match socket.read_buf(&mut buf).await? {
-            0 => {
-                println!("Connection closed");
-                return Ok(());
-            }
+            0 => break, // connection closed
             bytes => {
                 println!("accepted {} bytes", bytes);
-                let s = buf.split_to(bytes);
+                let mut s = buf.split_to(bytes);
 
-                let response = match Decoder::new(s) {
-                    Ok(mut decoder) => match decoder.parse() {
-                        Ok(mut command_list) => {
-                            match process_command(&mut command_list, &store).await {
-                                Ok(response) => response,
-                                Err(e) => {
-                                    eprintln!("Error processing command: {}", e);
-                                    "-ERR\r\n".into()
-                                }
-                            }
+                match decoder.decode(&mut s) {
+                    Some(RedisCommand::Set(key, value, expiry)) => {
+                        store.insert(key, value, expiry).await;
+                        encoder.encode_ok(&mut response);
+                    }
+                    Some(RedisCommand::Get(key)) => {
+                        match store.get(&key).await {
+                            Some(value) => encoder.encode_bulk_string(&mut response, &value),
+                            None => encoder.encode_null(&mut response),
                         }
-                        Err(e) => {
-                            eprintln!("Error parsing command: {}", e);
-                            "-ERR Invalid command format\r\n".into()
-                        }
-                    },
-                    Err(e) => {
-                        eprintln!("Error decoding input: {}", e);
-                        "-ERR Invalid input\r\n".into()
+                    }
+                    Some(RedisCommand::Ping) => {
+                        encoder.encode_pong(&mut response);
+                    }
+                    Some(RedisCommand::Echo(message)) => {
+                        encoder.encode_bulk_string(&mut response, &message);
+                    }
+                    Some(RedisCommand::Unknown) => {
+                        encoder.encode_error(&mut response);
+                    }
+                    None => {
+                        encoder.encode_error(&mut response);
                     }
                 };
 
-                socket.write_all(response.as_ref()).await?;
+                socket.write_all(&response).await?;
+                response.clear();
             }
         }
     }
+    Ok(())
 }
