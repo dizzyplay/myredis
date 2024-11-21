@@ -5,6 +5,7 @@ pub enum RedisCommand {
     Set(String, String, Option<u64>), // key, value, expiry in milliseconds
     Get(String),
     Echo(String),
+    ConfigGet(String),  
     Unknown,
 }
 
@@ -104,6 +105,18 @@ impl RedisDecoder {
                             return Some(RedisCommand::Echo(message));
                         }
                         _ => {}
+                    }
+                }
+            } else if length == 3 {
+                // CONFIG GET command
+                if let Some(cmd) = self.read_bulk_string(src) {
+                    if cmd.to_uppercase() == "CONFIG" {
+                        if let Some(subcommand) = self.read_bulk_string(src) {
+                            if subcommand.to_uppercase() == "GET" {
+                                let parameter = self.read_bulk_string(src)?;
+                                return Some(RedisCommand::ConfigGet(parameter));
+                            }
+                        }
                     }
                 }
             }

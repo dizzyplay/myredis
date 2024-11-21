@@ -116,4 +116,29 @@ mod tests {
         }
         assert_eq!(buffer.len(), 0);
     }
+
+    #[test]
+    fn test_decode_config_get() {
+        let decoder = RedisDecoder::new();
+        
+        // Test CONFIG GET maxclients
+        let mut buffer = create_buffer(b"*3\r\n$6\r\nCONFIG\r\n$3\r\nGET\r\n$10\r\nmaxclients\r\n");
+        match decoder.decode(&mut buffer) {
+            Some(RedisCommand::ConfigGet(param)) => {
+                assert_eq!(param, "maxclients");
+            }
+            _ => panic!("Expected CONFIG GET command"),
+        }
+        assert_eq!(buffer.len(), 0);
+
+        // Test CONFIG GET timeout
+        let mut buffer = create_buffer(b"*3\r\n$6\r\nCONFIG\r\n$3\r\nGET\r\n$7\r\ntimeout\r\n");
+        match decoder.decode(&mut buffer) {
+            Some(RedisCommand::ConfigGet(param)) => {
+                assert_eq!(param, "timeout");
+            }
+            _ => panic!("Expected CONFIG GET command"),
+        }
+        assert_eq!(buffer.len(), 0);
+    }
 }

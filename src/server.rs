@@ -58,6 +58,9 @@ async fn handle_connection(mut socket: TcpStream, store: Arc<Store>) -> Result<(
                             None => encoder.encode_null(&mut response),
                         }
                     }
+                    Some(RedisCommand::ConfigGet(_)) => {
+                        encoder.encode_null(&mut response);
+                    }
                     Some(RedisCommand::Ping) => {
                         encoder.encode_pong(&mut response);
                     }
