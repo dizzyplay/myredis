@@ -78,7 +78,8 @@ async fn handle_connection(mut socket: TcpStream, store: Arc<Store>) -> Result<(
                                 };
 
                                 if let Some(v) = value {
-                                    encoder.encode_bulk_string(&mut response, v)
+                                    let arr = [&key.as_str().to_lowercase(),v];
+                                    encoder.encode_array(&mut response, &arr )
                                 } else {
                                     encoder.encode_null(&mut response)
                                 }

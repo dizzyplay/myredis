@@ -4,7 +4,6 @@ use bytes::BytesMut;
 pub struct RedisEncoder;
 
 impl RedisEncoder {
-    /// 새로운 Encoder 인스턴스를 생성합니다.
     pub fn new() -> RedisEncoder {
         RedisEncoder
     }
@@ -27,5 +26,22 @@ impl RedisEncoder {
 
     pub fn encode_bulk_string(&self, dst: &mut BytesMut, s: &str) {
         dst.extend_from_slice(format!("${}\r\n{}\r\n", s.len(), s).as_bytes());
+    }
+
+    pub fn encode_array(&self, dst: &mut BytesMut, items: &[&str]) {
+        dst.extend_from_slice(format!("*{}\r\n", items.len()).as_bytes());
+        for item in items {
+            self.encode_bulk_string(dst, item);
+        }
+    }
+
+    /// 빈 배열
+    pub fn encode_empty_array(&self, dst: &mut BytesMut) {
+        dst.extend_from_slice(b"*0\r\n");
+    }
+
+    /// null 배열
+    pub fn encode_null_array(&self, dst: &mut BytesMut) {
+        dst.extend_from_slice(b"*-1\r\n");
     }
 }
