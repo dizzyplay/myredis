@@ -1,5 +1,6 @@
 use bytes::{BytesMut, Buf};
 
+#[derive(Debug)]
 pub enum RedisCommand {
     Ping,
     Set(String, String, Option<u64>), // key, value, expiry in milliseconds
@@ -71,6 +72,7 @@ impl RedisDecoder {
             } else if length >= 3 {
                 // SET command with optional PX
                 if let Some(cmd) = self.read_bulk_string(src) {
+                    println!("here");
                     if cmd == "SET" {
                         let key = self.read_bulk_string(src)?;
                         let value = self.read_bulk_string(src)?;
@@ -88,8 +90,15 @@ impl RedisDecoder {
                                 }
                             }
                         }
-                        
                         return Some(RedisCommand::Set(key, value, expiry));
+                    }else if cmd.to_uppercase() == "CONFIG" {
+                        if let Some(subcommand) = self.read_bulk_string(src) {
+                            if subcommand.to_uppercase() == "GET" {
+                                let parameter = self.read_bulk_string(src)?;
+                                println!("{}", parameter);
+                                return Some(RedisCommand::ConfigGet(parameter));
+                            }
+                        }
                     }
                 }
             } else if length == 2 {
@@ -105,18 +114,6 @@ impl RedisDecoder {
                             return Some(RedisCommand::Echo(message));
                         }
                         _ => {}
-                    }
-                }
-            } else if length == 3 {
-                // CONFIG GET command
-                if let Some(cmd) = self.read_bulk_string(src) {
-                    if cmd.to_uppercase() == "CONFIG" {
-                        if let Some(subcommand) = self.read_bulk_string(src) {
-                            if subcommand.to_uppercase() == "GET" {
-                                let parameter = self.read_bulk_string(src)?;
-                                return Some(RedisCommand::ConfigGet(parameter));
-                            }
-                        }
                     }
                 }
             }

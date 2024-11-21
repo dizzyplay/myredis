@@ -127,7 +127,8 @@ mod tests {
             Some(RedisCommand::ConfigGet(param)) => {
                 assert_eq!(param, "maxclients");
             }
-            _ => panic!("Expected CONFIG GET command"),
+            _ => panic!("Expected CONFIG GET command")
+
         }
         assert_eq!(buffer.len(), 0);
 
