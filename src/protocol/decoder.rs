@@ -63,16 +63,13 @@ impl RedisDecoder {
             let length = self.read_resp_array_length(src)?;
             
             if length == 1 && src.len() >= 4 {
-                // PING command
                 if let Some(cmd) = self.read_bulk_string(src) {
                     if cmd == "PING" {
                         return Some(RedisCommand::Ping);
                     }
                 }
             } else if length >= 3 {
-                // SET command with optional PX
                 if let Some(cmd) = self.read_bulk_string(src) {
-                    println!("here");
                     if cmd == "SET" {
                         let key = self.read_bulk_string(src)?;
                         let value = self.read_bulk_string(src)?;
@@ -95,7 +92,6 @@ impl RedisDecoder {
                         if let Some(subcommand) = self.read_bulk_string(src) {
                             if subcommand.to_uppercase() == "GET" {
                                 let parameter = self.read_bulk_string(src)?;
-                                println!("{}", parameter);
                                 return Some(RedisCommand::ConfigGet(parameter));
                             }
                         }
