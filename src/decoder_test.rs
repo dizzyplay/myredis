@@ -102,4 +102,18 @@ mod tests {
             _ => panic!("Expected Unknown command for malformed input"),
         }
     }
+
+    #[test]
+    fn test_decode_echo() {
+        let decoder = RedisDecoder::new();
+        let mut buffer = create_buffer(b"*2\r\n$4\r\nECHO\r\n$5\r\nhello\r\n");
+        
+        match decoder.decode(&mut buffer) {
+            Some(RedisCommand::Echo(message)) => {
+                assert_eq!(message, "hello");
+            }
+            _ => panic!("Expected ECHO command"),
+        }
+        assert_eq!(buffer.len(), 0);
+    }
 }

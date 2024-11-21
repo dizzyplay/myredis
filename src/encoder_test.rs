@@ -52,4 +52,12 @@ mod tests {
         encoder.encode_bulk_string(&mut dst, "hello\nworld");
         assert_eq!(&dst[..], b"$11\r\nhello\nworld\r\n");
     }
+
+    #[test]
+    fn test_encode_echo() {
+        let encoder = RedisEncoder::new();
+        let mut dst = BytesMut::new();
+        encoder.encode_bulk_string(&mut dst, "hello");
+        assert_eq!(&dst[..], b"$5\r\nhello\r\n");
+    }
 }
