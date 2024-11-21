@@ -6,6 +6,7 @@ use bytes::BytesMut;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use crate::config::Args;
 
 pub struct Server {
     listener: TcpListener,
@@ -58,8 +59,35 @@ async fn handle_connection(mut socket: TcpStream, store: Arc<Store>) -> Result<(
                             None => encoder.encode_null(&mut response),
                         }
                     }
-                    Some(RedisCommand::ConfigGet(_)) => {
-                        encoder.encode_null(&mut response);
+                    Some(RedisCommand::ConfigGet(item)) => {
+                        let key = item.to_uppercase();
+                        match key.as_str() {
+                            "DIR" | "DBFILENAME" => {
+                                let config = match Args::read_config() {
+                                    Ok(c) => c,
+                                    Err(e) => {
+                                        eprintln!("Error: {:?}", e);
+                                        encoder.encode_null(&mut response);
+                                        continue;
+                                    },
+                                };
+                                let value = match key.as_str() {
+                                    "DIR" => config.dir.as_deref(),
+                                    "DBFILENAME" => config.dbfilename.as_deref(),
+                                    _ => unreachable!(),
+                                };
+
+                                if let Some(v) = value {
+                                    encoder.encode_bulk_string(&mut response, v)
+                                } else {
+                                    encoder.encode_null(&mut response)
+                                }
+                            },
+                            _ => {
+                                encoder.encode_null(&mut response);
+                                continue;
+                            }
+                        }
                     }
                     Some(RedisCommand::Ping) => {
                         encoder.encode_pong(&mut response);

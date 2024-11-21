@@ -1,13 +1,5 @@
-pub mod config;
-pub mod protocol {
-    pub mod decoder;
-    pub mod encoder;
-}
-pub mod server;
-pub mod store;
-
-use crate::config::Args;
-use crate::server::Server;
+use redis_starter_rust::config::Args;
+use redis_starter_rust::server::Server;
 use anyhow::Result;
 
 #[tokio::main]

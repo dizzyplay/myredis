@@ -46,7 +46,7 @@ impl Args {
         Ok(())
     }
 
-    fn read_config() -> Result<Self> {
+    pub fn read_config() -> Result<Self> {
         let config = std::fs::read_to_string("redis.conf").unwrap_or_default();
         let mut dir = None;
         let mut dbfilename = None;
