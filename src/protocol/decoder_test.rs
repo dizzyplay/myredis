@@ -142,4 +142,24 @@ mod tests {
         }
         assert_eq!(buffer.len(), 0);
     }
+
+    #[test]
+    fn test_decode_save() {
+        let decoder = RedisDecoder::new();
+        let mut buffer = create_buffer(b"*1\r\n$4\r\nSAVE\r\n");
+        
+        match decoder.decode(&mut buffer) {
+            Some(RedisCommand::Save) => (),
+            _ => panic!("Expected SAVE command"),
+        }
+        assert_eq!(buffer.len(), 0);
+
+        // Test with lowercase
+        let mut buffer = create_buffer(b"*1\r\n$4\r\nsave\r\n");
+        match decoder.decode(&mut buffer) {
+            Some(RedisCommand::Save) => (),
+            _ => panic!("Expected SAVE command for lowercase input"),
+        }
+        assert_eq!(buffer.len(), 0);
+    }
 }

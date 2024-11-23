@@ -96,6 +96,9 @@ async fn handle_connection(mut socket: TcpStream, store: Arc<Store>) -> Result<(
                     Some(RedisCommand::Echo(message)) => {
                         encoder.encode_bulk_string(&mut response, &message);
                     }
+                    Some(RedisCommand::Save) => {
+                        encoder.encode_ok(&mut response);
+                    }
                     Some(RedisCommand::Unknown) => {
                         encoder.encode_error(&mut response);
                     }
