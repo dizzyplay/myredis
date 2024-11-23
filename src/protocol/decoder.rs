@@ -7,6 +7,7 @@ pub enum RedisCommand {
     Get(String),
     Echo(String),
     ConfigGet(String),  
+    Save,
     Unknown,
 }
 
@@ -64,8 +65,10 @@ impl RedisDecoder {
             
             if length == 1 && src.len() >= 4 {
                 if let Some(cmd) = self.read_bulk_string(src) {
-                    if cmd == "PING" {
-                        return Some(RedisCommand::Ping);
+                    match cmd.to_uppercase().as_str() {
+                        "PING" => return Some(RedisCommand::Ping),
+                        "SAVE" => return Some(RedisCommand::Save),
+                        _ => {}
                     }
                 }
             } else if length >= 3 {
