@@ -27,31 +27,20 @@ impl RDB {
                 
                 // 데이터베이스 내용을 RDB 파일에 기록
                 for (key, value, expiry) in store.iter_for_rdb().await {
-                    // 현재 시간을 가져옴
-                    let now = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_millis() as u64;
-                    
                     match expiry {
                         // 만료 시간이 있는 경우
                         Some(expiry_ts) => {
                             // 이미 만료된 경우 저장하지 않음
-                            if expiry_ts <= now {
+                            if expiry_ts <= SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap()
+                                .as_millis() as u64 {
                                 continue;
                             }
                             
-                            // 만료까지 남은 시간 계산 (밀리초 단위)
-                            let remaining_ms = expiry_ts - now;
-                            
-                            // 밀리초를 초 단위로 변환할 수 있는 경우
-                            if remaining_ms % 1000 == 0 {
-                                db_buffer.push(0xFD);  // 초 단위 만료 시간
-                                db_buffer.extend_from_slice(&((remaining_ms / 1000) as u32).to_le_bytes());
-                            } else {
-                                db_buffer.push(0xFC);  // 밀리초 단위 만료 시간
-                                db_buffer.extend_from_slice(&remaining_ms.to_le_bytes());
-                            }
+                            // 밀리초 단위의 절대적인 Unix 타임스탬프를 RDB 파일에 기록
+                            db_buffer.push(0xFC);  // 밀리초 단위 만료 시간
+                            db_buffer.extend_from_slice(&expiry_ts.to_le_bytes());
                         },
                         // 만료 시간이 없는 경우
                         None => {}
