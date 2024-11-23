@@ -58,6 +58,16 @@ impl Store {
             None
         }
     }
+
+    // RDB 파일 생성을 위한 데이터 iterator
+    pub async fn iter_for_rdb(&self) -> impl Iterator<Item = (String, String, Option<u64>)> + '_ {
+        let store = self.data.lock().await;
+        store
+            .iter()
+            .map(|(k, v)| (k.clone(), v.data.clone(), v.expiry))
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
 }
 
 // Wrap the Store in a Mutex

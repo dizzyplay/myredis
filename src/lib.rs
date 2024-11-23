@@ -11,3 +11,7 @@ pub mod protocol {
 }
 pub mod server;
 pub mod store;
+pub mod rdb;
+
+#[cfg(test)]
+pub(crate) mod rdb_test;
