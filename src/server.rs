@@ -100,6 +100,7 @@ async fn handle_connection(mut socket: TcpStream, store: Arc<Store>) -> Result<(
                         encoder.encode_bulk_string(&mut response, &message);
                     }
                     Some(RedisCommand::Save) => {
+                        println!("save");
                         match Config::new() {
                             Ok(config) => {
                                 let dir = config.dir.unwrap_or_else(|| String::from("."));

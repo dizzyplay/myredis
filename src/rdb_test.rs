@@ -185,3 +185,68 @@ async fn test_create_rdb_with_millisecond_expiry() {
     // 테스트 후 파일 삭제
     fs::remove_file(path).unwrap();
 }
+
+#[test]
+async fn test_read_rdb() {
+    let path = "test_read.rdb";
+    
+    // 테스트용 Store 생성 및 데이터 추가
+    let original_store = Store::new();
+    original_store.insert("key1".to_string(), "value1".to_string(), None).await;
+    
+    // 현재 시간으로부터 60초 후 만료되는 키 추가
+    let expiry = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64 + 60000;
+    original_store.insert("key2".to_string(), "value2".to_string(), Some(expiry)).await;
+    
+    // RDB 파일 생성
+    let stores = vec![&original_store];
+    RDB::create_rdb(path, Some(&stores)).await.unwrap();
+    
+    // RDB 파일 읽기
+    let loaded_store = RDB::read_rdb(path).await.unwrap();
+    
+    // 데이터 검증
+    assert_eq!(loaded_store.get("key1").await.unwrap(), "value1");
+    assert_eq!(loaded_store.get("key2").await.unwrap(), "value2");
+    
+    // 만료되지 않은 키는 여전히 존재해야 함
+    assert!(loaded_store.get("key2").await.is_some());
+    
+    // 테스트 후 파일 삭제
+    fs::remove_file(path).unwrap();
+}
+
+#[test]
+async fn test_read_invalid_rdb() {
+    let path = "test_invalid.rdb";
+    
+    // 잘못된 형식의 RDB 파일 생성
+    fs::write(path, b"INVALID_RDB_FORMAT").unwrap();
+    
+    // 잘못된 형식의 파일 읽기 시도
+    let result = RDB::read_rdb(path).await;
+    assert!(result.is_err());
+    
+    // 테스트 후 파일 삭제
+    fs::remove_file(path).unwrap();
+}
+
+#[test]
+async fn test_read_empty_rdb() {
+    let path = "test_empty_read.rdb";
+    
+    // 빈 RDB 파일 생성
+    RDB::create_rdb(path, None).await.unwrap();
+    
+    // 빈 RDB 파일 읽기
+    let store = RDB::read_rdb(path).await.unwrap();
+    
+    // 빈 store 확인
+    assert!(store.get("non_existent_key").await.is_none());
+    
+    // 테스트 후 파일 삭제
+    fs::remove_file(path).unwrap();
+}
