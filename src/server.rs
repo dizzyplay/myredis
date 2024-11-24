@@ -17,7 +17,26 @@ pub struct Server {
 impl Server {
     pub async fn new(addr: &str) -> Result<Server> {
         let listener = TcpListener::bind(addr).await?;
-        let store = Arc::new(Store::new());
+        
+        // Config에서 RDB 파일 정보 가져오기
+        let config = Config::new()?;
+        let rdb_path = match (config.dir, config.dbfilename) {
+            (Some(dir), Some(filename)) => format!("{}/{}", dir, filename),
+            _ => "dump.rdb".to_string(), // 기본값 사용
+        };
+
+        // RDB 파일이 존재하면 로드, 없으면 새로운 Store 생성
+        let store = if std::path::Path::new(&rdb_path).exists() {
+            match RDB::read_rdb(&rdb_path).await {
+                Ok(loaded_store) => Arc::new(loaded_store),
+                Err(e) => {
+                    eprintln!("Failed to load RDB file: {:?}", e);
+                    Arc::new(Store::new())
+                }
+            }
+        } else {
+            Arc::new(Store::new())
+        };
 
         Ok(Server { listener, store })
     }
