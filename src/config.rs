@@ -2,32 +2,31 @@ use anyhow::Result;
 use clap::Parser;
 use std::fs::File;
 use std::io::Write;
+use crate::args::Args;
 
-#[derive(Parser)]
-#[command(author, version, about, long_about = None)]
-pub struct Args {
-    /// Directory path (optional)
-    #[arg(long)]
+#[derive(Debug, Default)]
+pub struct Config {
     pub dir: Option<String>,
-
-    /// DB filename (optional)
-    #[arg(long)]
     pub dbfilename: Option<String>,
 }
 
-impl Args {
-    pub fn load() -> Result<Self> {
-        let args = Self::parse();
-
+impl Config {
+    pub fn new() -> Result<Self> {
+        let args = Args::try_parse().unwrap();
+        
         if args.dir.is_none() && args.dbfilename.is_none() {
-            Self::read_config()
+            Self::from_file()
         } else {
-            args.save_config()?;
-            Ok(args)
+            let config = Config {
+                dir: args.dir,
+                dbfilename: args.dbfilename,
+            };
+            config.save_to_file()?;
+            Ok(config)
         }
     }
 
-    fn save_config(&self) -> Result<()> {
+    fn save_to_file(&self) -> Result<()> {
         let mut config_content = String::new();
 
         if let Some(dir) = self.dir.as_ref() {
@@ -46,7 +45,7 @@ impl Args {
         Ok(())
     }
 
-    pub fn read_config() -> Result<Self> {
+    fn from_file() -> Result<Self> {
         let config = std::fs::read_to_string("redis.conf").unwrap_or_default();
         let mut dir = None;
         let mut dbfilename = None;
@@ -60,6 +59,6 @@ impl Args {
             }
         }
 
-        Ok(Self { dir, dbfilename })
+        Ok(Config { dir, dbfilename })
     }
 }

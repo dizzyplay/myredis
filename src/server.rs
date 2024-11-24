@@ -1,12 +1,13 @@
 use crate::protocol::decoder::{RedisDecoder, RedisCommand};
 use crate::protocol::encoder::RedisEncoder;
+use crate::rdb::RDB;
 use crate::store::Store;
 use anyhow::Result;
 use bytes::BytesMut;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use crate::config::Args;
+use crate::config::Config;
 
 pub struct Server {
     listener: TcpListener,
@@ -63,8 +64,10 @@ async fn handle_connection(mut socket: TcpStream, store: Arc<Store>) -> Result<(
                         let key = item.to_uppercase();
                         match key.as_str() {
                             "DIR" | "DBFILENAME" => {
-                                let config = match Args::read_config() {
-                                    Ok(c) => c,
+                                let config = match Config::new() {
+                                    Ok(c) => {
+                                        c
+                                    },
                                     Err(e) => {
                                         eprintln!("Error: {:?}", e);
                                         encoder.encode_null(&mut response);
@@ -97,7 +100,25 @@ async fn handle_connection(mut socket: TcpStream, store: Arc<Store>) -> Result<(
                         encoder.encode_bulk_string(&mut response, &message);
                     }
                     Some(RedisCommand::Save) => {
-                        encoder.encode_ok(&mut response);
+                        match Config::new() {
+                            Ok(config) => {
+                                let dir = config.dir.unwrap_or_else(|| String::from("."));
+                                let filename = config.dbfilename.unwrap_or_else(|| String::from("dump.rdb"));
+                                let path = format!("{}/{}", dir, filename);
+                                
+                                match RDB::create_rdb(&path, Some(&[store.as_ref()])).await {
+                                    Ok(_) => encoder.encode_ok(&mut response),
+                                    Err(e) => {
+                                        eprintln!("Failed to save RDB: {:?}", e);
+                                        encoder.encode_error(&mut response);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to load config: {:?}", e);
+                                encoder.encode_error(&mut response);
+                            }
+                        }
                     }
                     Some(RedisCommand::Unknown) => {
                         encoder.encode_error(&mut response);

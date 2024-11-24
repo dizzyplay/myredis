@@ -1,3 +1,4 @@
+pub mod args;
 pub mod config;
 pub mod protocol {
     pub mod decoder;
