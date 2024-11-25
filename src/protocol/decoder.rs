@@ -6,7 +6,8 @@ pub enum RedisCommand {
     Set(String, String, Option<u64>), // key, value, expiry in milliseconds
     Get(String),
     Echo(String),
-    ConfigGet(String),  
+    ConfigGet(String),
+    Keys(String),
     Save,
     Unknown,
 }
@@ -57,7 +58,6 @@ impl RedisDecoder {
         if src.is_empty() {
             return None;
         }
-
         // RESP 프로토콜에서 배열은 *로 시작
         if src[0] == b'*' {
             src.advance(1);
@@ -103,7 +103,7 @@ impl RedisDecoder {
             } else if length == 2 {
                 // GET or ECHO command
                 if let Some(cmd) = self.read_bulk_string(src) {
-                    match cmd.as_str() {
+                    match cmd.to_uppercase().as_str() {
                         "GET" => {
                             let key = self.read_bulk_string(src)?;
                             return Some(RedisCommand::Get(key));
@@ -111,6 +111,10 @@ impl RedisDecoder {
                         "ECHO" => {
                             let message = self.read_bulk_string(src)?;
                             return Some(RedisCommand::Echo(message));
+                        }
+                        "KEYS" => {
+                            let query = self.read_bulk_string(src)?;
+                            return Some(RedisCommand::Keys(query))
                         }
                         _ => {}
                     }

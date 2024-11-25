@@ -140,6 +140,9 @@ async fn handle_connection(mut socket: TcpStream, store: Arc<Store>) -> Result<(
                             }
                         }
                     }
+                    Some(RedisCommand::Keys(query)) => {
+                        encoder.encode_error(&mut response);
+                    }
                     Some(RedisCommand::Unknown) => {
                         encoder.encode_error(&mut response);
                     }

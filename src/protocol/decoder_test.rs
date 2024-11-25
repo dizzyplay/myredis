@@ -162,4 +162,17 @@ mod tests {
         }
         assert_eq!(buffer.len(), 0);
     }
+
+    #[test]
+    fn test_decode_keys() {
+        let decoder = RedisDecoder::new();
+        let mut buffer = create_buffer(b"*2\r\n$4\r\nKEYS\r\n$1\r\n*\r\n");
+
+        match decoder.decode(&mut buffer) {
+            Some(RedisCommand::Keys(query)) => {
+                assert_eq!(query, "*");
+            },
+            _ => panic!("Expected KEYS command")
+        }
+    }
 }
