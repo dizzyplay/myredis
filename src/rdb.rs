@@ -9,6 +9,24 @@ use crc::{Crc, CRC_64_MS};
 pub struct RDB;
 
 impl RDB {
+    // Helper function to encode integers in length-encoded format
+    pub fn length_encode_int(mut value: usize, buffer: &mut Vec<u8>) {
+        loop {
+            let mut byte = (value & 0x7f) as u8;  // Take the least significant 7 bits
+            value >>= 7;  // Shift right by 7 bits
+            
+            if value > 0 {
+                byte |= 0x80;  // Set MSB to 1 if there are more bytes
+            }
+            
+            buffer.push(byte);
+            
+            if value == 0 {
+                break;
+            }
+        }
+    }
+
     pub async fn create_rdb<P: AsRef<Path> + std::fmt::Debug>(path: P, stores: Option<&[&Store]>) -> io::Result<()> {
         let mut buffer = Vec::new();
         println!("{:?}", path);
@@ -63,8 +81,18 @@ impl RDB {
                 
                 // 데이터가 있는 경우에만 데이터베이스 선택자와 내용을 추가
                 if has_data {
-                    buffer.push(0xFE);
+                    buffer.push(0xFE);  // Select DB
                     buffer.push(db_index as u8);
+                    buffer.push(0xFB);  // Resizedb field
+                    
+                    // Hash table size (using length-encoded-int format)
+                    let hash_table_size = store.len().await;
+                    Self::length_encode_int(hash_table_size, &mut buffer);
+                    
+                    // Expire hash table size
+                    let expire_table_size = store.expire_len().await;
+                    Self::length_encode_int(expire_table_size, &mut buffer);
+                    
                     buffer.extend_from_slice(&db_buffer);
                 }
             }
@@ -99,10 +127,9 @@ impl RDB {
                 println!();
             }
         }
-        println!();
 
         // Redis RDB 파일의 매직 넘버와 버전 확인 (REDIS0011)
-        if buffer.len() < 9 || &buffer[0..9] != b"REDIS0011" {
+        if buffer.len() < 9 || &buffer[0..5] != b"REDIS" {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "Invalid RDB file format",
@@ -137,6 +164,20 @@ impl RDB {
                         }
                         pos += 1;
                     }
+                }
+                0xFB => {
+                    // resizedb 필드 처리
+                    pos += 1;
+                    // 첫 번째 length-encoded integer (hash table size) 건너뛰기
+                    while pos < buffer.len() && (buffer[pos] & 0x80) != 0 {
+                        pos += 1;
+                    }
+                    pos += 1;
+                    // 두 번째 length-encoded integer (expire hash table size) 건너뛰기
+                    while pos < buffer.len() && (buffer[pos] & 0x80) != 0 {
+                        pos += 1;
+                    }
+                    pos += 1;
                 }
                 0xFE => {
                     // 데이터베이스 선택자

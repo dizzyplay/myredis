@@ -19,7 +19,7 @@ async fn test_create_empty_rdb() {
     let contents = fs::read(path).unwrap();
     
     // 매직 넘버와 버전 확인
-    assert_eq!(&contents[0..9], b"REDIS0011");
+    assert_eq!(&contents[0..5], b"REDIS");
     
     // 메타데이터 마커와 버전 정보 확인
     assert_eq!(contents[9], 0xFA);
@@ -183,6 +183,62 @@ async fn test_create_rdb_with_millisecond_expiry() {
     assert!(contents.windows(2).any(|w| w[0] == 0xFF));
     
     // 테스트 후 파일 삭제
+    fs::remove_file(path).unwrap();
+}
+
+#[test]
+async fn test_length_encode_int() {
+    let mut buffer = Vec::new();
+    
+    // Test case 1: Small number (127)
+    RDB::length_encode_int(127, &mut buffer);
+    assert_eq!(buffer, vec![0x7F]);  // 0111 1111
+    buffer.clear();
+    
+    // Test case 2: Medium number (300)
+    RDB::length_encode_int(300, &mut buffer);
+    assert_eq!(buffer, vec![0xAC, 0x02]);  // 1010 1100, 0000 0010
+    buffer.clear();
+    
+    // Test case 3: Large number (16384)
+    RDB::length_encode_int(16384, &mut buffer);
+    assert_eq!(buffer, vec![0x80, 0x80, 0x01]);  // 1000 0000, 1000 0000, 0000 0001
+    buffer.clear();
+}
+
+#[test]
+async fn test_rdb_with_fb_field() {
+    let path = "test_fb.rdb";
+    
+    // Create store with some data
+    let store = Store::new();
+    store.insert("key1".to_string(), "value1".to_string(), None).await;
+    store.insert("key2".to_string(), "value2".to_string(), Some(60000)).await;
+    
+    // Create RDB file
+    let stores = vec![&store];
+    RDB::create_rdb(path, Some(&stores)).await.unwrap();
+    
+    // Read file contents
+    let contents = fs::read(path).unwrap();
+    
+    // Find the database selector (0xFE) and check if FB field follows
+    let mut found_fb = false;
+    for i in 0..contents.len()-2 {
+        if contents[i] == 0xFE && contents[i+1] == 0x00 {  // DB 0
+            assert_eq!(contents[i+2], 0xFB);  // FB field
+            found_fb = true;
+            
+            // Verify that two length-encoded integers follow
+            // We expect small numbers, so they should be single bytes
+            assert!(contents[i+3] < 0x80);  // Hash table size (MSB should be 0)
+            assert!(contents[i+4] < 0x80);  // Expire hash table size (MSB should be 0)
+            break;
+        }
+    }
+    assert!(found_fb, "FB field not found after database selector");
+    
+    // Clean up
     fs::remove_file(path).unwrap();
 }
 

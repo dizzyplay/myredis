@@ -78,6 +78,18 @@ impl Store {
             .collect::<Vec<_>>()
             .into_iter()
     }
+
+    pub async fn len(&self) -> usize {
+        let store = self.data.lock().await;
+        store.len()
+    }
+
+    pub async fn expire_len(&self) -> usize {
+        let store = self.data.lock().await;
+        store.iter()
+            .filter(|(_, v)| v.expiry.is_some())
+            .count()
+    }
 }
 
 // Wrap the Store in a Mutex
