@@ -119,7 +119,6 @@ async fn handle_connection(mut socket: TcpStream, store: Arc<Store>) -> Result<(
                         encoder.encode_bulk_string(&mut response, &message);
                     }
                     Some(RedisCommand::Save) => {
-                        println!("save");
                         match Config::new() {
                             Ok(config) => {
                                 let dir = config.dir.unwrap_or_else(|| String::from("."));
@@ -141,7 +140,9 @@ async fn handle_connection(mut socket: TcpStream, store: Arc<Store>) -> Result<(
                         }
                     }
                     Some(RedisCommand::Keys(query)) => {
-                        encoder.encode_error(&mut response);
+                        let keys = store.keys(&query).await;
+                        let key_refs: Vec<&str> = keys.iter().map(|s| s.as_str()).collect();
+                        encoder.encode_array(&mut response, &key_refs);
                     }
                     Some(RedisCommand::Unknown) => {
                         encoder.encode_error(&mut response);

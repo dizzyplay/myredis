@@ -16,3 +16,4 @@ pub mod rdb;
 
 #[cfg(test)]
 pub(crate) mod rdb_test;
+pub mod pattern_parser;

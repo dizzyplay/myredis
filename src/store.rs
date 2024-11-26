@@ -2,6 +2,7 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
+use crate::pattern_parser::{HashMapPatternExt, WildCardPattern};
 
 #[derive(Debug)]
 struct Value {
@@ -57,6 +58,15 @@ impl Store {
         } else {
             None
         }
+    }
+
+    pub async fn keys(&self, pattern: &str) -> Vec<String> {
+        let store = self.data.lock().await;
+        store
+            .keys()
+            .filter(|_| store.contains_key_pattern(WildCardPattern(pattern.to_string())))
+            .map(|k| k.to_string())
+            .collect()
     }
 
     // RDB 파일 생성을 위한 데이터 iterator

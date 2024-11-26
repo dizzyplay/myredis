@@ -55,6 +55,7 @@ impl RedisDecoder {
     }
 
     pub fn decode(&self, src: &mut BytesMut) -> Option<RedisCommand> {
+        println!("decode this -> {:?}",src);
         if src.is_empty() {
             return None;
         }
