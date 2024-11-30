@@ -99,9 +99,9 @@ impl RDB {
                 // Resizedb 필드
                 buffer.push(0xFB); // Resizedb marker
                 let hash_table_size = store.len().await;
-                buffer.push(hash_table_size as u8); // Hash table size
+                Self::length_encode_int(hash_table_size, &mut buffer);
                 let expire_table_size = store.expire_len().await;
-                buffer.push(expire_table_size as u8); // Expire hash table size
+                Self::length_encode_int(expire_table_size, &mut buffer);
 
                 // 데이터베이스 내용을 RDB 파일에 기록
                 for (key, value, expiry) in store.iter_for_rdb().await {
@@ -195,9 +195,9 @@ impl RDB {
                     // Resizedb 필드
                     pos += 1;
                     // Hash table size
-                    pos += 1;
+                    let _hash_table_size = Self::length_decode_int(&mut pos, &buffer);
                     // Expire hash table size
-                    pos += 1;
+                    let _expire_table_size = Self::length_decode_int(&mut pos, &buffer);
                 }
                 0xFE => {
                     // 데이터베이스 선택자
