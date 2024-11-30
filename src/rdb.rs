@@ -24,6 +24,7 @@ impl RDB {
         }
     }
 
+    // 현재는 값을 사용하지않고 버퍼에서 건너뛰기만 하고있음
     pub fn length_decode_int(pos: &mut usize, buffer: &Vec<u8>) -> usize {
         match buffer[*pos] >> 6 {
             0 => {
