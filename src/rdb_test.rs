@@ -1,6 +1,7 @@
 use crate::rdb::RDB;
 use crate::store::Store;
 use std::fs;
+use std::io::Write;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::test;
@@ -19,17 +20,27 @@ async fn test_create_empty_rdb() {
     let contents = fs::read(path).unwrap();
     
     // 매직 넘버와 버전 확인
-    assert_eq!(&contents[0..5], b"REDIS");
+    assert_eq!(&contents[0..9], b"REDIS0011");
     
-    // 메타데이터 마커와 버전 정보 확인
+    // 메타데이터 마커와 redis-ver 확인
     assert_eq!(contents[9], 0xFA);
-    assert!(contents[10..].starts_with(b"redis-ver"));
+    assert_eq!(contents[10], 0x09); // "redis-ver" 길이 (9) - length encoded
+    assert_eq!(&contents[11..20], b"redis-ver");
+    assert_eq!(contents[20], 0x05); // "7.2.0" 길이 (5) - length encoded
+    assert_eq!(&contents[21..26], b"7.2.0");
     
-    // EOF 마커가 있는지 확인
-    assert!(contents.windows(2).any(|w| w[0] == 0xFF));
+    // redis-bits 메타데이터 확인
+    assert_eq!(contents[26], 0xFA);
+    assert_eq!(contents[27], 0x0A); // "redis-bits" 길이 (10) - length encoded
+    assert_eq!(&contents[28..38], b"redis-bits");
+    assert_eq!(contents[38], 0xC0); // 특수 인코딩
+    assert_eq!(contents[39], 0x40); // 64비트
     
-    // 파일 크기가 최소 크기(매직넘버 + 메타데이터 + EOF + 체크섬) 이상인지 확인
-    assert!(contents.len() > 9 + 12 + 1 + 8);
+    // EOF 마커 확인
+    assert_eq!(contents[40], 0xFF);
+    
+    // 체크섬이 8바이트인지 확인
+    assert_eq!(contents.len(), 49); // 매직넘버(9) + 메타데이터(31) + EOF(1) + 체크섬(8)
     
     // 테스트 후 파일 삭제
     fs::remove_file(path).unwrap();
@@ -190,19 +201,19 @@ async fn test_create_rdb_with_millisecond_expiry() {
 async fn test_length_encode_int() {
     let mut buffer = Vec::new();
     
-    // Test case 1: Small number (127)
-    RDB::length_encode_int(127, &mut buffer);
-    assert_eq!(buffer, vec![0x7F]);  // 0111 1111
+    // Test case 1: 6비트 숫자 (63 이하)
+    RDB::length_encode_int(63, &mut buffer);
+    assert_eq!(buffer, vec![0x3F]);  // 00111111
     buffer.clear();
     
-    // Test case 2: Medium number (300)
-    RDB::length_encode_int(300, &mut buffer);
-    assert_eq!(buffer, vec![0xAC, 0x02]);  // 1010 1100, 0000 0010
+    // Test case 2: 14비트 숫자 (16383 이하)
+    RDB::length_encode_int(16383, &mut buffer);
+    assert_eq!(buffer, vec![0x7F, 0xFF]);  // 01111111 11111111
     buffer.clear();
     
-    // Test case 3: Large number (16384)
-    RDB::length_encode_int(16384, &mut buffer);
-    assert_eq!(buffer, vec![0x80, 0x80, 0x01]);  // 1000 0000, 1000 0000, 0000 0001
+    // Test case 3: 32비트 숫자
+    RDB::length_encode_int(1000000, &mut buffer);
+    assert_eq!(buffer, vec![0x80, 0x00, 0x0F, 0x42, 0x40]);  // 10000000 + 4바이트
     buffer.clear();
 }
 
@@ -302,6 +313,47 @@ async fn test_read_empty_rdb() {
     
     // 빈 store 확인
     assert!(store.get("non_existent_key").await.is_none());
+    
+    // 테스트 후 파일 삭제
+    fs::remove_file(path).unwrap();
+}
+
+#[test]
+async fn test_read_rdb_with_hex() {
+    let path = "test_hex.rdb";
+    
+    // 정확한 헥스값으로 파일 생성
+    let hex_str = "52 45 44 49 53 30 30 31 31 fa 09 72 65 64 69 73 2d 76 65 72 05 37 2e 32 2e 30 fa 0a 72 65 64 69 73 2d 62 69 74 73 c0 40 fe 00 fb 05 00 00 09 62 6c 75 65 62 65 72 72 79 05 67 72 61 70 65 00 0a 73 74 72 61 77 62 65 72 72 79 09 72 61 73 70 62 65 72 72 79 00 09 72 61 73 70 62 65 72 72 79 0a 73 74 72 61 77 62 65 72 72 79 00 05 67 72 61 70 65 06 6f 72 61 6e 67 65 00 06 62 61 6e 61 6e 61 05 61 70 70 6c 65 ff e4 a8 64 89 fc a8 37 0e 0a";
+    
+    // 헥스 문자열을 바이트 배열로 변환
+    let hex_data: Vec<u8> = hex_str
+        .split_whitespace()
+        .map(|s| u8::from_str_radix(s, 16).unwrap())
+        .collect();
+    
+    // 파일에 헥스값 쓰기
+    let mut file = std::fs::File::create(path).unwrap();
+    file.write_all(&hex_data).unwrap();
+    
+    // RDB 파일 읽기
+    let store = RDB::read_rdb(path).await.unwrap();
+    
+    // 저장된 키-값 쌍 확인
+    let expected_pairs = [
+        ("blueberry", "grape"),
+        ("strawberry", "raspberry"),
+        ("raspberry", "strawberry"),
+        ("grape", "orange"),
+        ("banana", "apple"),
+    ];
+    
+    for (key, expected_value) in expected_pairs.iter() {
+        let value = store.get(key).await.unwrap();
+        assert_eq!(&value, expected_value);
+    }
+    
+    // 총 키-값 쌍 개수 확인
+    assert_eq!(store.len().await, 5);
     
     // 테스트 후 파일 삭제
     fs::remove_file(path).unwrap();
